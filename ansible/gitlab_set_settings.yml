@@ -1,0 +1,37 @@
+---
+  - hosts: vm-gitlab
+    become: yes
+    become_user: root
+    gather_facts: true
+    roles:      
+      - { role: k8s_gitlab_credentials, vars: { target: "../k8s/{{ tf_workspace }}/registry-credentials.yml", tmpl: "registry-credentials.j2"} }
+      - { role: gitlab_allow_local_webhook }
+      - { role: gitlab_add_user }
+      - { role: gitlab_get_user_id, vars: { target: "bdvme" } }
+      - { role: gitlab_create_personal_access_token, vars: { target: 'bdvme' } }
+# Create all projects    
+      - { role: gitlab_create_project, vars: { target: 'bdvme' }  } #Create all projects
+# Set settings for project: demo-project
+      - { role: gitlab_get_project_id, vars: { user_name: 'bdvme', target: "demo-project" } }
+      - { role: gitlab_add_project_access_token, vars: { user_name: 'bdvme', target: "demo-project" } }
+      - { role: gitlab_add_cicd_vars, vars: { user_name: 'bdvme', target: "demo-project" } }
+      - { role: gitlab_add_project_branches, vars: { user_name: 'bdvme', target: "demo-project" } }
+      - { role: gitlab_add_protect_repo_branches, vars: { user_name: 'bdvme', target: "demo-project" } }
+      - { role: gitlab_add_project_files, vars: { user_name: 'bdvme', path: '../app', target: "demo-project" } }
+# Set settings for project: tf-infra-project
+      - { role: gitlab_get_project_id, vars: { user_name: 'bdvme', target: "tf-infra" } }
+      - { role: gitlab_add_project_access_token, vars: { user_name: 'bdvme', target: "tf-infra" } }
+      - { role: gitlab_add_cicd_vars, vars: { user_name: 'bdvme', target: "tf-infra" } }
+      - { role: gitlab_add_project_branches, vars: { user_name: 'bdvme', target: "tf-infra" } }
+      - { role: gitlab_add_protect_repo_branches, vars: { user_name: 'bdvme', target: "tf-infra" } }
+      - { role: k8s_atlantis, vars: { user_name: 'bdvme', target: "../tf-infra/atlantis.yaml", tmpl: "atlantis.j2"}}
+      - { role: gitlab_prepare_project_files, vars: { source: 'tf', path: '../', target: "tf-infra" }}
+      - { role: gitlab_prepare_project_files, vars: { source: 'ssh_key', path: '../', target: "tf-infra" }}
+      - { role: gitlab_add_project_files, vars: { user_name: 'bdvme', path: '../', target: "tf-infra" } }
+# Add webhook for atlantis      
+      - { role: gitlab_add_project_hook, vars: { user_name: 'bdvme', target: "tf-infra" } }
+# K8S create atlantis-deployment.yaml from template file
+      - { role: k8s_atlantis_deployment_template, vars: { user_name: 'bdvme', target: "../k8s/atlantis/{{ tf_workspace }}/atlantis-deployment.yaml", tmpl: "atlantis-deployment.j2"} }
+      - { role: k8s_apply, vars: { manifest: "atlantis/{{ tf_workspace }}/atlantis-deployment.yaml" } }
+      - { role: wait_url, vars: { url: "{{ app_server_url }}"} }
+      - { role: wait_url, vars: { url: "{{ atlantis_url }}"} }

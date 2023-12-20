@@ -1,0 +1,68 @@
+---
+  - hosts: localhost
+    become: false
+    gather_facts: false
+    roles:
+      - { role: k8s }
+  
+  - hosts: infra
+    become: yes
+    become_user: root
+    gather_facts: false
+    roles:
+      - { role: wait_hosts }
+      - { role: check_dns }
+      - { role: ssh-keys }
+      - { role: tools, vars: { tools_packages: ["python3",
+                                                "python3-pip",
+                                                "python3-setuptools",
+                                                "openssl",
+                                                "curl",
+                                                "git",
+                                                "software-properties-common",
+                                                "sshpass",
+                                                "wget",
+                                                "curl",
+                                                "unzip",
+                                                "gnupg",
+                                                "ansible",
+                                                "ansible-lint",
+                                                "mc",
+                                                "net-tools",
+                                                "jq",
+                                                "snapd"
+                                                ] } }
+      - { role: docker }
+      - { role: templates, vars: { target: "/etc/hosts", tmpl: "hosts.j2"} }
+      - { role: copy_kubeconf }
+
+  - hosts: vm-bastion
+    become: yes
+    become_user: root
+    gather_facts: false
+    roles:
+      - { role: sync, vars: { target: "caddy" }}
+      - { role: k8s_get_node_ip }
+      - { role: templates, vars: { target: "/opt/caddy/config/Caddyfile", tmpl: "Caddyfile.j2"} }
+      - { role: docker_compose, vars: { description: "Install caddy", folder: "caddy", command: "pull"} }
+      - { role: docker_compose, vars: { description: "Install caddy", folder: "caddy", command: "down --remove-orphans"} }
+      - { role: docker_compose, vars: { description: "Install caddy", folder: "caddy", command: "up -d --remove-orphans"} }
+      
+  - hosts: vm-gitlab
+    become: yes
+    become_user: root
+    gather_facts: false
+    roles:
+      - { role: sync, vars: { target: "gitlab" } }
+      - { role: templates, vars: { target: "/opt/gitlab/docker-compose.yml", tmpl: "gitlab.j2"} }
+      - { role: templates, vars: { target: "/opt/gitlab/runner/docker-compose.yml", tmpl: "runner.j2"} }
+      - { role: add_user, vars: { user: "gitlab-runner", group: "docker" } }
+      - { role: docker_compose, vars: { description: "Install Gitlab", folder: "gitlab", command: "pull"}, tags: "" }
+      - { role: docker_compose, vars: { description: "Install gitlab-runner", folder: "gitlab/runner", command: "pull" }, tags: "" }
+      - { role: docker_compose, vars: { description: "Install gitlab-runner", folder: "gitlab/runner", command: "down --remove-orphans" }, tags: "" }
+      - { role: docker_compose, vars: { description: "Install Gitlab", folder: "gitlab", command: "down --remove-orphans"} }
+      - { role: docker_compose, vars: { description: "Install Gitlab", folder: "gitlab", command: "up -d --remove-orphans"} }
+      - { role: health_check, vars: { container: "gitlab", status: "healthy" } }
+      - { role: get_pwd, tags: "" }  
+      - { role: docker_compose, vars: { description: "Install gitlab-runner", folder: "gitlab/runner", command: "build" }, tags: "" }
+      - { role: docker_compose, vars: { description: "Install gitlab-runner", folder: "gitlab/runner", command: "up -d --remove-orphans" }, tags: "" }

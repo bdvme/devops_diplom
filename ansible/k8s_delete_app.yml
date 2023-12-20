@@ -1,0 +1,11 @@
+---
+  - hosts: localhost
+    become: no
+    gather_facts: true
+    roles:
+      - { role: k8s_delete, vars: { namespaces: "atlantis-ns" } }
+      - { role: k8s_delete, vars: { namespaces: "monitoring" } }
+      - { role: k8s_delete, vars: { namespaces: "demo-app" } }
+      
+      
+      

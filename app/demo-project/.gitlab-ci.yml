@@ -1,0 +1,94 @@
+stages:
+  - build
+  - deploy
+  - release
+image: docker:20.10.16
+variables:
+  DOCKER_TLS_CERTDIR: ""
+services:
+  - docker:20.10.16-dind
+builder:
+  stage: build
+  tags:
+    - docker
+  script:
+    - docker build -t $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH:latest --cache-from $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH:$CI_COMMIT_SHORT_SHA ./src
+  only:
+    - feature/build
+    - main
+    - master
+deployer:
+  stage: deploy
+  tags:
+    - docker
+  script:
+    - cat $KEY_JSON | docker login --username json_key --password-stdin $CI_REGISTRY
+    - docker image pull $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH:latest || true
+    - docker build -t $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH:latest --cache-from $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH:$CI_COMMIT_SHORT_SHA ./src
+    - docker push --all-tags $CI_REGISTRY/$CI_REGISTRY_ID/$CI_PROJECT_PATH
+  only:
+    - feature/release
+    - feature/deploy
+    - main
+    - master
+deploy_to_k8s:
+  stage: deploy
+  tags:
+    - docker
+  image: 
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  script:
+    - kubectl config set-cluster k8s --certificate-authority=$CA_PEM --server=$KUBE_INT_URL --kubeconfig=kubeconfig
+    - kubectl config set-credentials admin-user --token=$KUBE_TOKEN --kubeconfig=kubeconfig
+    - kubectl config set-context default --cluster=k8s --user=admin-user --kubeconfig=kubeconfig
+    - kubectl config use-context default --kubeconfig=kubeconfig
+    - cat kubeconfig
+    - kubectl get pods --all-namespaces --kubeconfig=kubeconfig
+    - kubectl cluster-info --kubeconfig=kubeconfig
+    - sed -i "s,__VERSION__,${CI_REGISTRY}/${CI_REGISTRY_ID}/${CI_PROJECT_PATH}:$CI_COMMIT_SHORT_SHA," k8s.yml
+    - kubectl delete -f k8s.yml --ignore-not-found --kubeconfig=kubeconfig
+    - kubectl apply -f k8s.yml --kubeconfig=kubeconfig
+  only:
+    - feature/release
+    - feature/deploy
+    - main
+    - master
+release:
+  stage: release
+  tags:
+    - docker
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  variables:
+    GIT_STRATEGY: clone
+  needs:
+    - job: deployer
+  before_script:
+    - apk update
+    - apk add curl jq git
+    - git config --global user.name "${GITLAB_USER_NAME}"
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+  script:
+    - export VERSION=$(jq -r .version version.json)
+    - export NAME=$(jq -r .name version.json)
+    - export MESSAGE=$(cat ./changelog/$VERSION.md)
+    - CURRENTDATE="$(date)"
+    - echo "$CURRENTDATE added a line" | tee -a timelog.log
+    - git add timelog.log
+    - git commit -m "[ci skip] updated timelog.log at $CURRENTDATE"
+    - git remote set-url origin "http://gitlab-ci-token:$ACCESS_TOKEN@$CI_SERVER_HOST:4433/$CI_PROJECT_PATH.git"
+    - git push -o ci-skip origin HEAD:$CI_COMMIT_REF_NAME
+    - git tag
+    - |
+        if [ $(git tag -l "$VERSION") ]; then
+          echo "Version $VERSION already exists"
+        else
+          echo "Release version $NAME $VERSION"
+          git tag -a $VERSION -m "Version $VERSION"
+          git push -o ci-skip --tags origin HEAD:$CI_COMMIT_REF_NAME
+          release-cli --insecure-https=true create --name "Release version $NAME $VERSION" \
+          --description "$MESSAGE" --tag-name $VERSION --ref $CI_COMMIT_SHA
+        fi
+  only:
+    - main
+    - master

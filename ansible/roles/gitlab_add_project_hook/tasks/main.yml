@@ -1,0 +1,22 @@
+---
+  - name: Add Gitlab project hook
+    ansible.builtin.uri:
+      url: "{{ gitlab_config.api_url }}/projects/{{ gitlab_config.projects | selectattr('name','equalto', target ) | map(attribute='project_id') | join(' ') }}/hooks"
+      method: POST
+      body_format: json
+      status_code: [200, 201, 202]
+      return_content: true
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='user_api_token') | join(' ') }}"
+        Content-Type: application/json
+      body:
+          id: "{{ item.id }}"
+          url: "{{ item.url }}"
+          push_events: "{{ item.push_events }}"
+          merge_requests_events: "{{ item.merge_requests_events }}"
+          enable_ssl_verification: "{{ item.enable_ssl_verification }}"
+          note_events: "{{ item.note_events }}"
+          token: "{{ item.token }}"
+    with_items: "{{ gitlab_config.projects | selectattr('name','equalto', target ) | map(attribute='hooks') }}"
+    ignore_errors: true
+    changed_when: false

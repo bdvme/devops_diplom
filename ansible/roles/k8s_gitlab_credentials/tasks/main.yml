@@ -1,0 +1,31 @@
+---
+  - name: Create Docker registry secret
+    become: false
+    shell:
+      cmd: |
+        kubectl create secret docker-registry regcred --docker-server=cr.yandex --docker-username=json_key --docker-password="$(cat ${PWD}/{{ tf_workspace }}/key.json)" --dry-run=client --output="jsonpath={.data.\.dockerconfigjson}" | base64 --decode | jq 'del(.auths."cr.yandex".auth)' | base64
+      chdir: ../k8s
+    register: reg
+    delegate_to: localhost
+
+  - name: Set dockerconfigjson base64 encode to variable
+    set_fact:
+      dockerconfigjson: "{{ reg.stdout }}"
+  
+  - name: Create "{{ target }}" file from template
+    become: false
+    template: 
+      src: "{{ tmpl }}" 
+      dest: "{{ target }}"
+    delegate_to: localhost
+  
+  - name: Apply yaml chart
+    become: false
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        kubectl delete -f ./{{ tf_workspace }}/registry-credentials.yml  --ignore-not-found
+        kubectl apply -f ./{{ tf_workspace }}/registry-credentials.yml
+      chdir: "../k8s"
+    delegate_to: localhost

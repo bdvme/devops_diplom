@@ -1,0 +1,61 @@
+--- 
+  - name: K8S Use context default
+    become: false
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        kubectl config use-context default
+      chdir: ../k8s
+    delegate_to: localhost
+    
+  - name: Get k8s-node-internal-ip-1
+    become: false
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'
+      chdir: ../k8s
+    register: ip1
+    delegate_to: localhost
+    
+  - name: Get k8s-node-internal-ip-2
+    become: false
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        kubectl get nodes -o jsonpath='{.items[1].status.addresses[0].address}'
+      chdir: ../k8s
+    register: ip2
+    delegate_to: localhost
+  
+  - name: Get k8s-node-internal-ip-3
+    become: false
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        kubectl get nodes -o jsonpath='{.items[2].status.addresses[0].address}'
+      chdir: ../k8s
+    register: ip3
+    delegate_to: localhost
+
+  - name: Set k8s node 1 internal endpoint to variable
+    become: false
+    set_fact:
+      k8s_internal_ip_node_1: "{{ ip1.stdout }}"
+    delegate_to: localhost
+  
+  - name: Set k8s node 2 internal endpoint to variable
+    become: false
+    set_fact:
+      k8s_internal_ip_node_2: "{{ ip2.stdout }}"
+    delegate_to: localhost
+  
+  - name: Set k8s node 3 internal endpoint to variable
+    become: false
+    set_fact:
+      k8s_internal_ip_node_3: "{{ ip3.stdout }}"
+    delegate_to: localhost

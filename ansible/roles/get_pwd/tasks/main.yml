@@ -1,0 +1,11 @@
+---
+  - name: Get gitlab root password
+    shell: "cat /opt/gitlab/config/initial_root_password | grep Password:"
+    register: pwd
+    ignore_errors: true
+    changed_when: false
+  
+  - name: Print root password
+    debug:
+      msg: "{{ pwd.stdout }}"
+    when: pwd.rc == 0

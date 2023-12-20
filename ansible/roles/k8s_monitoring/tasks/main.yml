@@ -1,0 +1,25 @@
+---
+  - name: Create monitoring pods Prometheus and Grafana
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo add tricksterproxy https://helm.tricksterproxy.io
+        helm repo update
+        kubectl delete namespace monitoring --ignore-not-found
+        helm install monitoring-app prometheus-community/prometheus --create-namespace --namespace monitoring
+        helm install trickster tricksterproxy/trickster --namespace monitoring -f ./monitoring/trickster.yaml
+        kubectl create configmap k8s-dashboard --from-file=./monitoring/dashboard.json --namespace=monitoring
+        kubectl apply -f ./monitoring/grafana.yaml --namespace=monitoring
+      chdir: ../k8s
+  
+  - name: Wait for grafana pods become ready
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell: "kubectl wait --namespace=monitoring --for=condition=Ready pods --selector app=grafana --timeout=600s"
+    args:
+      chdir: ../k8s
+    register: grafana_pods_ready
+
+  - debug: var=grafana_pods_ready.stdout_lines

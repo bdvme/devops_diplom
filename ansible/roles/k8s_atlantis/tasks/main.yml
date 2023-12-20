@@ -1,0 +1,100 @@
+---
+# stage
+  - name: Get access_key to backet access stage workspace
+    become: false
+    shell:
+      cmd: |
+        cat sa-key.json | jq -r .access_key.key_id
+      chdir: ../tf/key/stage
+    delegate_to: localhost
+    register: reg
+
+  - debug: msg={{ reg.stdout }}
+  
+  - name: Set backend stage access_key to variable
+    set_fact:
+      backend_stage_access_key: "{{ reg.stdout }}"
+  
+  - name: Get secret to backet access stage workspace
+    become: false
+    shell:
+      cmd: |
+        cat sa-key.json | jq -r .secret
+      chdir: ../tf/key/stage
+    delegate_to: localhost
+    register: reg
+
+  - debug: msg={{ reg.stdout }}
+  
+  - name: Set backend stage secret to variable
+    set_fact:
+      backend_stage_secret_key: "{{ reg.stdout }}"
+  
+  - name: Get yandex_folder_id stage workspace
+    become: false
+    shell:
+      cmd: |
+        yc resource-manager folder get stage --format=json | jq -r .id
+      chdir: ../tf
+    delegate_to: localhost
+    register: reg
+
+  - debug: msg={{ reg.stdout }}
+  
+  - name: Set yandex_folder_id to variable
+    set_fact:
+      stage_yandex_folder_id: "{{ reg.stdout }}"
+
+# prod  
+  - name: Get access_key to backet access prod workspace
+    become: false
+    shell:
+      cmd: |
+        cat sa-key.json | jq -r .access_key.key_id
+      chdir: ../tf/key/prod
+    delegate_to: localhost
+    register: reg
+
+  - debug: msg={{ reg.stdout }}
+  
+  - name: Set backend prod access_key to variable
+    set_fact:
+      backend_prod_access_key: "{{ reg.stdout }}"
+  
+  - name: Get secret to backet access prod workspace
+    become: false
+    shell:
+      cmd: |
+        cat sa-key.json | jq -r .secret
+      chdir: ../tf/key/prod
+    delegate_to: localhost
+    register: reg
+
+  - debug: msg={{ reg.stdout }}
+  
+  - name: Set backend prod secret to variable
+    set_fact:
+      backend_prod_secret_key: "{{ reg.stdout }}"
+  
+  - name: Get yandex_folder_id prod workspace
+    become: false
+    shell:
+      cmd: |
+        yc resource-manager folder get prod --format=json | jq -r .id
+      chdir: ../tf
+    delegate_to: localhost
+    register: reg
+
+  - debug: msg={{ reg.stdout }}
+  
+  - name: Set yandex_folder_id to variable
+    set_fact:
+      prod_yandex_folder_id: "{{ reg.stdout }}"
+
+# Create from template
+  - name: Create "{{ target }}" file from template
+    become: false
+    template: 
+      src: "{{ tmpl }}" 
+      dest: "{{ target }}"
+    delegate_to: localhost 

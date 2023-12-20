@@ -1,0 +1,21 @@
+---
+  - name: Create Gitlab User
+    ansible.builtin.uri:
+      url: "{{ gitlab_config.api_url }}/users"
+      method: POST
+      body_format: json
+      status_code: [200, 201, 202]
+      return_content: true
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab_config.api_token }}"
+        Content-Type: application/json
+      body:
+        email: "{{ item.email }}"
+        name: "{{ item.name }}"
+        reset_password: "{{ item.reset_password }}"
+        username: "{{ item.username }}"
+        password: "{{ item.password }}"
+        skip_confirmation: "{{ item.skip_confirmation }}"
+    with_items: "{{ gitlab_config.users }}"
+    ignore_errors: true
+    changed_when: false

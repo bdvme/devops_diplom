@@ -1,0 +1,9 @@
+{
+    "auths": {
+            "registry.bdvsun.ru:5555": {
+                    "auth": "YmR2X21lQGljbG91ZC5jb206TG9raTE5ODI3MzEK"
+            }
+    },
+    "insecure-registries": ["registry.bdvsun.ru:5555"]
+     
+}

@@ -1,0 +1,66 @@
+version: "3.5"
+services:
+  gitlab_runner:
+    build:
+      context: .
+      
+      dockerfile: Dockerfile
+    image: gitlab_runner:latest
+  runner:
+    restart: always
+    image: gitlab_runner:latest
+    depends_on:
+      - gitlab_runner
+      #  condition: service_completed_successfully
+    environment:
+      - GIT_SSL_NO_VERIFY=true
+    extra_hosts:
+      - "{{ gitlab_url }}:{{ gitlab_extra_hosts }}"
+      - "{{ gitlab_registry }}:{{ gitlab_extra_hosts }}"
+    ports:
+      - '8093:8093'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/etc/gitlab-runner:z
+      - ./config.json:/root/.docker/config.json
+    networks:
+      - gitlab_gitlab_net
+
+  register_runner:
+    restart: 'no'
+    image: gitlab_runner:latest
+    environment:
+      - CI_SERVER_URL={{ gitlab_url_http }}:4433
+      - REGISTRATION_TOKEN={{ gitlab_runner_token }}
+      - GIT_SSL_NO_VERIFY=true
+      - DOCKER_AUTH_CONFIG:{"auths":{"{{ gitlab_registry }}:5555":{"auth":"YmR2X21lQGljbG91ZC5jb206TG9raTE5ODI3MzEK"}}}
+    depends_on:
+      - runner
+    extra_hosts:
+      - "{{ gitlab_url }}:{{ gitlab_extra_hosts }}"
+      - "{{ gitlab_registry }}:{{ gitlab_extra_hosts }}"
+    command:
+      - register
+      - --non-interactive
+      - --locked=false
+      - --name=docker gitlab-runner
+      - --executor=docker
+      - --docker-tlsverify=false
+      - --docker-image=docker:20.10.16
+      - --docker-privileged=true
+      - --docker-volumes=/cache
+      - --tag-list=ansible, docker
+      - --run-untagged=true
+      - --docker-network-mode=gitlab_gitlab_net
+      - --docker-extra-hosts={{ gitlab_url }}:{{ gitlab_extra_hosts }}
+      - --docker-extra-hosts={{ gitlab_registry }}:{{ gitlab_extra_hosts }}
+      - --env=DOCKER_AUTH_CONFIG:{"auths":{"{{ gitlab_registry }}:5555":{"auth":"YmR2X21lQGljbG91ZC5jb206TG9raTE5ODI3MzEK"}}}
+      - --env=GIT_SSL_NO_VERIFY=true
+      - --clone-url={{ gitlab_url_http }}:4433
+    volumes:
+      - ./config:/etc/gitlab-runner:z
+    networks:
+      - gitlab_gitlab_net
+networks:
+  gitlab_gitlab_net:
+    external: true

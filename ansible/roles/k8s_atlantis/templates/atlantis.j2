@@ -1,0 +1,58 @@
+version: 3
+automerge: true
+delete_source_branch_on_merge: true
+parallel_plan: true
+parallel_apply: true
+abort_on_execution_order_fail: true
+projects:
+- name: tf-infra-stage
+  dir: tf
+  workspace: stage    
+  repo_locking: true
+  custom_policy_check: false
+  autoplan:
+    when_modified: ["*.tf", "./modules/**/*.tf", ".terraform.lock.hcl"]
+    enabled: true
+  execution_order_group: 1
+  workflow: stage
+- name: tf-infra-prod
+  dir: tf
+  workspace: prod    
+  repo_locking: true
+  custom_policy_check: false
+  autoplan:
+    when_modified: ["*.tf", "./modules/**/*.tf", ".terraform.lock.hcl"]
+    enabled: true
+  execution_order_group: 1
+  workflow: prod
+workflows:
+  stage:
+    plan:
+      steps:
+        - run: rm -rf .terraform
+        - run: rm -rf .terraform.lock.hcl
+        - run: >-
+            terraform init -lock=false -input=false -no-color -reconfigure -backend-config="bucket=backend01" -backend-config="access_key={{ backend_stage_access_key }}" -backend-config="secret_key={{ backend_stage_secret_key }}"
+        - plan:
+            extra_args: ["-lock=false", "-var-file=.tfvars", "-var 'yandex_folder_id={{ stage_yandex_folder_id }}'"]
+    apply:
+      steps:
+        - apply:
+            extra_args: ["-lock=false"]
+  prod:
+    plan:
+      steps:
+        - run: rm -rf .terraform
+        - run: rm -rf .terraform.lock.hcl
+        - run: >-
+            terraform init -lock=false -input=false -no-color -reconfigure -backend-config="bucket=backend01" -backend-config="access_key={{ backend_prod_access_key }}" -backend-config="secret_key={{ backend_prod_secret_key }}"
+        - plan:
+            extra_args: ["-lock=false", "-var-file=.tfvars", "-var 'yandex_folder_id={{ prod_yandex_folder_id }}'"]
+    apply:
+      steps:
+        - apply:
+            extra_args: ["-lock=false"]
+allowed_regexp_prefixes:
+- dev/
+- staging/
+- feature/

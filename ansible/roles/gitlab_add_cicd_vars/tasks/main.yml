@@ -1,0 +1,53 @@
+---
+  - name: Install yq tools
+    shell:
+      snap install yq
+
+  - name: Get service account token from file_get_contents
+    shell: |
+      cat /opt/k8s/{{ tf_workspace }}/kubeconfig-int | yq e '.users[] | select(.name == "admin-user").user["token"]'
+    register: reg
+
+  - name: Set service account token to variable
+    set_fact:
+      sa_token: "{{ reg.stdout }}"
+
+  - name: Create Gitlab CI/CD variables
+    ansible.builtin.uri:
+      url: "{{ gitlab_config.api_url }}/projects/{{ gitlab_config.projects | selectattr('name','equalto', target ) | map(attribute='project_id') | join(' ') }}/variables"
+      method: POST
+      body_format: json
+      status_code: [200, 201, 202]
+      return_content: true
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='user_api_token') | join(' ') }}"
+        Content-Type: application/json
+      body:
+        key: "{{ item.key }}"
+        variable_type: "{{ item.type }}"
+        value: "{{ item.value }}"
+        protected: "{{ item.protected }}"
+        masked: "{{ item.masked }}"
+        raw: "{{ item.raw }}"
+        environment_scope: "{{ item.environments }}"
+        description: "{{ item.description }}"
+    with_items: "{{ gitlab_config.projects | selectattr('name','equalto', target ) | map(attribute='cicd') }}"
+    no_log: false
+    ignore_errors: true
+    changed_when: false
+  
+#  - name: Change the visibility of the Container Registry
+#    ansible.builtin.uri:
+#      url: "{{ gitlab_config.api_url }}/projects/{{ gitlab_config.project_id }}"
+#      method: PUT
+#      body_format: json
+#      status_code: [200, 201, 202]
+#      return_content: true
+#      headers:
+#        PRIVATE-TOKEN: "{{ gitlab_config.api_token }}"
+#        Accept: application/json
+#        Content-Type: application/json
+#      body:
+#        container_registry_access_level: "private"
+#    ignore_errors: true
+#    changed_when: false

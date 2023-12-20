@@ -1,0 +1,8 @@
+---
+  - name: Copy directory to tf-infra project directory
+    become: false
+    shell: |
+      cp -R ../{{ source }} ./
+    args:
+      chdir: "{{ path }}/{{ target }}"
+    delegate_to: localhost

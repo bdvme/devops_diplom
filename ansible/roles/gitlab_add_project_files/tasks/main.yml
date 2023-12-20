@@ -1,0 +1,53 @@
+---  
+  - name: Move project directory to tmp directory
+    become: false
+    shell:
+      cmd:
+        "mv ./{{ target }} ./tmp"
+      chdir: "{{ path }}"
+    delegate_to: localhost
+
+  - name: Del .git
+    become: false
+    shell:
+        rm -rf ./.git
+    args:
+      chdir: "{{ path }}/tmp"
+    delegate_to: localhost  
+   
+  - name: Pull gitlab repository
+    become: false
+    git:
+      repo: "http://gitlab-ci-token:{{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='user_api_token') | join(' ') }}@{{ gitlab_server }}:4433/{{ user_name }}/{{ target }}.git"
+      dest: "{{ path }}/{{ target }}"
+    delegate_to: localhost
+
+  - name: Copy tmp directory to project directory
+    become: false
+    shell: |
+      cp -R ../tmp/ ./
+    args:
+      chdir: "{{ path }}/{{ target }}"
+    delegate_to: localhost
+
+  - name: Del tmp directory
+    become: false
+    shell: |
+      rm -rf ./tmp
+    args: 
+      chdir: "{{ path }}"
+    delegate_to: localhost
+  
+  - name: Add project to GitLab server
+    become: false
+    shell: |
+      git config --local user.name "{{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='name') | join(' ') }}"
+      git config --local user.email "{{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='email') | join(' ') }}"
+      git add .
+      git commit -m "Initial commit"
+      git branch -m main
+      git push --set-upstream origin main
+    args:
+      chdir: "{{ path }}/{{ target }}"
+    delegate_to: localhost
+    ignore_errors: true

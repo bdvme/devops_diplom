@@ -1,0 +1,63 @@
+:4433 {
+    gzip
+    proxy / {{ gitlab_server }}:4433 {
+        transparent
+       insecure_skip_verify
+    }
+    proxy /ws {{ gitlab_server }}:3001 {
+		websocket
+	}
+    errors stderr
+#    tls off
+}
+
+{{ app_server }}:80 {
+    proxy / {{ k8s_internal_ip_node_1 }}:30080 {
+            transparent
+            insecure_skip_verify
+        }
+    proxy / {{ k8s_internal_ip_node_2 }}:30080 {
+            transparent
+            insecure_skip_verify
+        }
+    proxy / {{ k8s_internal_ip_node_3 }}:30080 {
+            transparent
+            insecure_skip_verify
+        }
+    errors stderr
+    tls off
+}
+
+{{ atlantis_server }}:80 {
+    proxy / {{ k8s_internal_ip_node_1 }}:30090 {
+            transparent
+            insecure_skip_verify
+        }
+    proxy / {{ k8s_internal_ip_node_2 }}:30090 {
+            transparent
+            insecure_skip_verify
+        }
+    proxy / {{ k8s_internal_ip_node_3 }}:30090 {
+            transparent
+            insecure_skip_verify
+        }
+    errors stderr
+    tls off
+}
+
+{{ grafana_server }}:80 {
+    proxy / {{ k8s_internal_ip_node_1 }}:30100 {
+            transparent
+            insecure_skip_verify
+        }
+    proxy / {{ k8s_internal_ip_node_2 }}:30100 {
+            transparent
+            insecure_skip_verify
+        }
+    proxy / {{ k8s_internal_ip_node_3 }}:30100 {
+            transparent
+            insecure_skip_verify
+        }
+    errors stderr
+    tls off
+}

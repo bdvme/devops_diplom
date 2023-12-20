@@ -1,0 +1,24 @@
+---
+  - debug: >
+      var=item
+    with_items: "{{ gitlab_config.projects | selectattr('name', 'equalto', 'demo-project' ) }}"
+
+  - name: Create Gitlab project
+    ansible.builtin.uri:
+      url: "{{ gitlab_config.api_url }}/projects/user/{{ gitlab_config.users | selectattr('username','equalto', target ) | map(attribute='user_id') | join(' ') }}"
+      method: POST
+      body_format: json
+      status_code: [200, 201, 202]
+      return_content: true
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab_config.api_token }}"
+        Content-Type: application/json
+      body:
+        name: "{{ item.name }}"
+        description: "{{ item.description }}" 
+        initialize_with_readme: "{{ item.initialize_with_readme }}"
+    with_items: "{{ gitlab_config.projects }}"
+    ignore_errors: true
+    changed_when: false
+
+  

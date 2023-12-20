@@ -1,0 +1,13 @@
+---
+  - name: Delete namespaces
+    become: false
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        kubectl config use-context default
+        kubectl delete namespace {{ namespaces }} --ignore-not-found
+      chdir: "../k8s"
+    timeout: 60
+    delegate_to: localhost
+    ignore_errors: true

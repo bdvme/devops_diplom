@@ -1,0 +1,11 @@
+---
+  - name: Synchronization {{ target }}
+    copy:
+      src: stack/opt/{{ target }}
+      dest: "/opt"
+      owner: root
+      group: root
+      mode: 0644
+    become: true
+  
+

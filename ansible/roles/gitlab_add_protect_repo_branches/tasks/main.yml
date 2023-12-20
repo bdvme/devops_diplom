@@ -1,0 +1,20 @@
+---
+  - name: Create Gitlab protect repository branches
+    ansible.builtin.uri:
+      url: "{{ gitlab_config.api_url }}/projects/{{ gitlab_config.projects | selectattr('name','equalto', target ) | map(attribute='project_id') | join(' ') }}/protected_branches"
+      method: POST
+      body_format: json
+      status_code: [200, 201, 202]
+      return_content: true
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='user_api_token') | join(' ') }}"
+        Content-Type: application/json
+      body:
+        name: "{{ item.name }}"
+        push_access_level: "{{ item.push_access_level }}"
+        merge_access_level: "{{ item.merge_access_level }}"
+        unprotect_access_level: "{{ item.unprotect_access_level }}"
+        allow_force_push: "{{ item.allow_force_push }}"
+    with_items: "{{ gitlab_config.projects | selectattr('name','equalto', target ) | map(attribute='branches_protect') }}"
+    ignore_errors: true
+    changed_when: false

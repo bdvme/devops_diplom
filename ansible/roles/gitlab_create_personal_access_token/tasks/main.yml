@@ -1,0 +1,27 @@
+---
+  - name: Create Gitlab personal access token
+    ansible.builtin.uri:
+      url: "{{ gitlab_config.api_url }}/users/{{ gitlab_config.users | selectattr('username','equalto', target ) | map(attribute='user_id') | join(' ') }}/personal_access_tokens"
+      method: POST
+      body_format: json
+      status_code: [200, 201, 202]
+      return_content: true
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab_config.api_token }}"
+        Content-Type: application/json
+      body:
+        name: "{{ item.name }}"
+        scopes: "{{ item.scopes }}"
+        expires_at: "{{ item.expires_at }}"
+    with_items: "{{ gitlab_config.users | selectattr('username','equalto', target ) | map(attribute='personal_token') }}"
+    
+    no_log: false
+    ignore_errors: true
+    changed_when: false
+    register: reg
+
+  - name: Set Gitlab project access token to variable
+    set_fact:
+      user_api_token: "{{ reg.results[0]['json']['token'] }}"
+  
+  - debug: msg="{{ user_api_token }}"

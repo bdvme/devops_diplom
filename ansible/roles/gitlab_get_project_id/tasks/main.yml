@@ -1,0 +1,12 @@
+---
+  - name: Get Gitlab user project id
+    shell: |
+      curl --header "PRIVATE-TOKEN: {{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='user_api_token') | join(' ') }}" "{{ gitlab_config.api_url }}/users/{{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='user_id') | join(' ') }}/projects" | jq '.[] | select(.name == "{{ target }}").id'
+    no_log: false
+    ignore_errors: true
+    changed_when: false
+    register: reg
+
+  - name: Set Gitlab project id to variable
+    set_fact:
+      project_id: "{{ reg.stdout }}"

@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: atlantis-ns
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: atlantis-config
+  namespace: atlantis-ns
+  labels:
+    app: atlantis
+data:
+  config.yaml: |
+    automerge: true
+    write-git-creds: true
+    enable-diff-markdown-format: true
+    hide-unchanged-plan-comments: true
+    hide-prev-plan-comments: true
+    parallel-plan: true
+    repo-allowlist: '*'
+    log-level: info
+    gitlab-hostname: {{ gitlab_url_http }}:4433
+    gitlab-user: {{ user_name }}
+    gitlab-token: {{ gitlab_config.users | selectattr('username','equalto', user_name ) | map(attribute='user_api_token') | join(' ') }}
+    gitlab-webhook-secret: {{ atlantis_webhook_secret }}
+  repos.yaml: |
+    ---
+    repos:
+    - id: /.*/
+      allow_custom_workflows: true
+      allowed_overrides: [custom_policy_check, workflow, repo_locking, apply_requirements, plan_requirements, import_requirements, delete_source_branch_on_merge]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tf-config
+  namespace: atlantis-ns
+  labels:
+    app: atlantis
+data:
+  terraformrc: |
+    provider_installation {
+      network_mirror {
+        url = "https://terraform-mirror.yandexcloud.net/"
+        include = ["registry.terraform.io/*/*"]
+      }
+      direct {
+        exclude = ["registry.terraform.io/*/*"]
+      }
+    }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: atlantis
+  namespace: atlantis-ns
+spec:
+  serviceName: atlantis
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+  selector:
+    matchLabels:
+      name: atlantis
+  template:
+    metadata:
+      namespace: atlantis-ns
+      labels:
+        name: atlantis
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+      - name: atlantis
+        image: ghcr.io/runatlantis/atlantis:v0.26.0
+        env:
+          - name: ATLANTIS_CONFIG
+            value: /configs/config.yaml
+          - name: ATLANTIS_REPO_CONFIG
+            value: /configs/repos.yaml
+          - name: ATLANTIS_DATA_DIR
+            value: /atlantis
+          - name: ATLANTIS_ATLANTIS_URL
+            value: {{ atlantis_url }}
+          - name: ATLANTIS_PORT
+            value: "4141"
+        volumeMounts:
+        - name: atlantis-data
+          mountPath: /atlantis
+        - name: atlantis-configs
+          mountPath: /configs
+          readOnly: true
+        - name: tf-configs
+          mountPath: /home/atlantis/.terraformrc
+          subPath: .terraformrc
+          readOnly: true
+        ports:
+        - name: atlantis
+          containerPort: 4141
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+          limits:
+            memory: 256Mi
+            cpu: 100m
+        livenessProbe:
+          periodSeconds: 60
+          httpGet:
+            path: /healthz
+            port: 4141
+            scheme: HTTP
+        readinessProbe:
+          periodSeconds: 60
+          httpGet:
+            path: /healthz
+            port: 4141
+            scheme: HTTP
+      volumes:
+      - name: atlantis-configs
+        configMap:
+          name: atlantis-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+          - key: repos.yaml
+            path: repos.yaml
+      - name: tf-configs
+        configMap:
+          name: tf-config
+          items:
+          - key: terraformrc
+            path: .terraformrc
+  volumeClaimTemplates:
+  - metadata:
+      name: atlantis-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlantis
+  namespace: atlantis-ns
+spec:
+  selector:
+    name: atlantis
+  ports:
+    - protocol: TCP
+      port: 4141
+      targetPort: 4141
+      nodePort: 30090
+  type: NodePort              

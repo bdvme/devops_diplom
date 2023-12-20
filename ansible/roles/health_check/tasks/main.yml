@@ -1,0 +1,8 @@
+---
+  - name: "Wait for {{ container }} container is {{ status }} status."
+    docker_container_info:
+      name: "{{ container }}"
+    register: result
+    until: result.container.State.Health.Status == status
+    retries: 100
+    delay: 25

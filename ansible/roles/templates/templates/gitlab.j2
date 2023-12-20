@@ -1,0 +1,61 @@
+version: '3.3'
+services:
+  web:
+    image: 'gitlab/gitlab-ce:16.5.0-ce.0'
+    container_name: gitlab
+    restart: always
+    hostname: '{{ gitlab_url }}'
+    extra_hosts:
+      - "{{ gitlab_url }}:{{ gitlab_extra_hosts }}"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        ### Add any gitlab.rb configuration here, each on its own line
+        external_url "{{ gitlab_url_http }}:4433"
+        gitlab_rails['time_zone'] = "Europe/Moscow"
+        gitlab_rails['initial_shared_runners_registration_token'] = "{{ gitlab_runner_token }}"
+        # explicitly disable Geo module
+        gitlab_rails['geo_registry_replication_enabled'] = false
+        geo_secondary['auto_migrate'] = false
+
+        ### Default project feature settings
+        gitlab_rails['gitlab_default_projects_features_container_registry'] = true
+        gitlab_rails['gitlab_default_projects_features_builds'] = true
+
+        ### gitlab container registry
+        registry_external_url "{{ gitlab_registry_http }}:5555"
+        gitlab_rails['registry_enabled'] = true
+        gitlab_rails['registry_host'] = "{{ registry_server }}"
+        gitlab_rails['registry_port'] = "5555"
+        registry['registry_http_addr'] = "0.0.0.0:5000"
+        registry_nginx['enable'] = false
+
+        ### gitlab package registry
+        gitlab_rails['packages_enabled'] = true
+        gitlab_rails['dependency_proxy_enabled'] = true
+
+        ### puma worker
+        puma['enable'] = true
+        puma['worker_processes'] = 3
+
+        ### disable internal nginx
+        nginx['enable'] = false
+        gitlab_rails['trusted_proxies'] = ["0.0.0.0"]
+        gitlab_workhorse['listen_network'] = "tcp"
+        gitlab_workhorse['listen_addr'] = "0.0.0.0:4433"
+        # Add whatever user runs under to the following setting unless root
+    ports:
+      - '5555:5000'
+      - '4433:4433'
+      - '2022:2022'
+    volumes:
+      - './config:/etc/gitlab'
+      - './config/ssl:/etc/gitlab/ssl/'
+      - './logs:/var/log/gitlab'
+      - './data:/var/opt/gitlab'
+    shm_size: '256m'
+    networks:
+      - gitlab_net
+    labels:
+      org.label-schema.group: "gitlab"
+networks:
+  gitlab_net:

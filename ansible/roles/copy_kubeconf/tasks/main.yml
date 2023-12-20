@@ -1,0 +1,45 @@
+---
+  - name: Create k8s directory
+    file:
+      path: /opt/k8s
+      state: directory
+
+  - name: Create workspace directory
+    file:
+      path: "/opt/k8s/{{ tf_workspace }}"
+      state: directory
+
+  - name: Copy static kubeconfig
+    copy: 
+      src: "../k8s/{{ tf_workspace }}/kubeconfig-int"
+      dest: "/opt/k8s/{{ tf_workspace }}/kubeconfig-int"
+      owner: root
+      group: root
+      mode: 0644
+  
+  - name: Copy token ca.pem
+    copy: 
+      src: "../k8s/{{ tf_workspace }}/ca.pem"
+      dest: "/opt/k8s/{{ tf_workspace }}/ca.pem"
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: Install kubectl
+    shell: >
+      cd /opt/k8s &&
+      curl -LO https://dl.k8s.io/release/`curl -LS https://dl.k8s.io/release/stable.txt`/bin/linux/amd64/kubectl &&
+      chmod +x ./kubectl &&
+      mv ./kubectl /usr/local/bin/kubectl &&
+      kubectl config use-context default --kubeconfig=/opt/k8s/{{ tf_workspace }}/kubeconfig-int &&
+      kubectl version --client      
+    register: reg
+  
+  - debug: var=reg.stdout
+  
+  - name: Get cluster info
+    shell:
+      kubectl cluster-info --kubeconfig=/opt/k8s/{{ tf_workspace }}/kubeconfig-int
+    register: reg
+  
+  - debug: var=reg.stdout

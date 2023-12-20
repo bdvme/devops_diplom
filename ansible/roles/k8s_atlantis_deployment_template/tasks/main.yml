@@ -1,0 +1,7 @@
+---
+  - name: Create "{{ target }}" file from template
+    become: false
+    template: 
+      src: "{{ tmpl }}" 
+      dest: "{{ target }}"
+    delegate_to: localhost 

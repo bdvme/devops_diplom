@@ -1,0 +1,15 @@
+---
+  - name: Allow local requests from webhooks and services
+    ansible.builtin.uri:
+      url: "{{ gitlab_config.api_url }}/application/settings"
+      method: PUT
+      body_format: json
+      status_code: [200, 201, 202]
+      return_content: true
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab_config.api_token }}"
+        Content-Type: application/json
+      body:
+        allow_local_requests_from_web_hooks_and_services: "{{ gitlab_config.allow_local_requests_from_web_hooks_and_services }}"
+    ignore_errors: true
+    changed_when: false

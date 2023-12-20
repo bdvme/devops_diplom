@@ -1,0 +1,114 @@
+---
+  - name: Get cluster id
+    become: false
+    shell: |
+      yc managed-kubernetes cluster list --folder-name={{ tf_workspace }} --format json | jq -r '.[0].id'
+    register: reg
+  - name: Set cluster id to variable
+    become: false
+    set_fact:
+      cluster_id: "{{ reg.stdout }}"
+  
+  - name: Get credential
+    become: false
+    shell: >
+      yc managed-kubernetes cluster get-credentials {{ cluster_id }} 
+      --external 
+      --force 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig
+
+  - name: Create ca.pem
+    become: false
+    shell: >
+      yc managed-kubernetes cluster get --id {{ cluster_id }}  
+      --format json | 
+      jq -r .master.master_auth.cluster_ca_certificate | 
+      awk '{gsub(/\\n/,"\n")}1' > ../k8s/{{ tf_workspace }}/ca.pem
+  
+  - name: Create service account
+    become: false
+    shell: >
+      kubectl delete -f ../k8s/sa.yml 
+      --ignore-not-found=true 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig &&
+      kubectl create -f ../k8s/sa.yml 
+      --allow-missing-template-keys=true 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig
+  
+  - name: Get service account token
+    become: false
+    shell: >
+      kubectl -n kube-system get secret $(kubectl -n kube-system get secret --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig | 
+      grep admin-user-token | awk '{print $1}') -o json --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig | jq -r .data.token | base64 --d
+    register: reg
+
+  - name: Set service account token to variable
+    become: false
+    set_fact:
+      sa_token: "{{ reg.stdout }}"
+  
+  - name: Get k8s master internal endpoint
+    become: false
+    shell: >
+      yc managed-kubernetes cluster get --id {{ cluster_id }} --format json | 
+      jq -r .master.endpoints.internal_v4_endpoint
+    register: reg
+  
+  - name: Set k8s master internal endpoint to variable
+    become: false
+    set_fact:
+      master_endpoint_int: "{{ reg.stdout }}"
+    
+  - name: Get k8s master external endpoint
+    become: false
+    shell: >
+      yc managed-kubernetes cluster get --id {{ cluster_id }} --format json | 
+      jq -r .master.endpoints.external_v4_endpoint
+    register: reg
+  
+  - name: Set k8s master external endpoint to variable
+    become: false
+    set_fact:
+      master_endpoint_ext: "{{ reg.stdout }}"
+    
+  - name: Create static kubeconfig for internal connection
+    become: false
+    shell: >
+      kubectl config set-cluster k8s 
+      --certificate-authority=../k8s/{{ tf_workspace }}/ca.pem 
+      --server={{ master_endpoint_int }} 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig-int &&
+      
+      kubectl config set-credentials admin-user 
+      --token={{ sa_token }} 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig-int &&
+      
+      kubectl config set-context default 
+      --cluster=k8s 
+      --user=admin-user 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig-int
+    
+  - name: Create static kubeconfig for external connection
+    become: false
+    shell: >
+      kubectl config set-cluster k8s 
+      --certificate-authority=../k8s/{{ tf_workspace }}/ca.pem 
+      --server={{ master_endpoint_ext }} 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig-ext &&
+      
+      kubectl config set-credentials admin-user 
+      --token={{ sa_token }} 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig-ext &&
+      
+      kubectl config set-context default 
+      --cluster=k8s 
+      --user=admin-user 
+      --kubeconfig=../k8s/{{ tf_workspace }}/kubeconfig-ext
+    
+  
+
+      
+
+
+    
+  

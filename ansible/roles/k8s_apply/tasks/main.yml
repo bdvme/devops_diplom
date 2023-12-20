@@ -1,0 +1,11 @@
+---
+  - name: Apply yaml chart
+    become: false
+    environment: 
+      KUBECONFIG: "{{ tf_workspace }}/kubeconfig-ext"
+    shell:
+      cmd: |
+        kubectl delete -f ./{{ manifest }} --ignore-not-found
+        kubectl apply -f ./{{ manifest }}
+      chdir: "../k8s"
+    delegate_to: localhost

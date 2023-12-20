@@ -1,0 +1,28 @@
+version: '3.3'
+
+networks:
+  gitlab_net:
+    driver: bridge
+services:
+  caddy:
+    image: stefanprodan/caddy:0.10.10
+    container_name: caddy
+    ports:
+#      - "5555:5555"
+      - "4433:4433"
+      - "80:80"
+#      - "9090:9090"
+#      - "9100:9100"
+#      - "3000:3000"
+#      - "9093:9093"
+
+    volumes:
+      - ./config:/etc/caddy
+    environment:
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+    restart: always
+    networks:
+      - gitlab_net
+    labels:
+      org.label-schema.group: "gitlab"

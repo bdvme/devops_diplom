@@ -1,0 +1,5 @@
+---
+  - name: Create "{{ target }}" file from template
+    template: 
+      src: "{{ tmpl }}" 
+      dest: "{{ target }}" 

@@ -1,0 +1,12 @@
+---
+  - name: Get Gitlab user id
+    shell: |
+      curl --header "PRIVATE-TOKEN: {{ gitlab_config.api_token }}" "{{ gitlab_config.api_url }}/users" | jq '.[] | select(.username == "{{ target }}").id'
+    no_log: false
+    ignore_errors: true
+    changed_when: false
+    register: reg
+
+  - name: Set Gitlab user id to variable
+    set_fact:
+      user_id: "{{ reg.stdout }}"
