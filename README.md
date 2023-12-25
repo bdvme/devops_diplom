@@ -5235,7 +5235,39 @@ ansible-playbook -i stage-inventory --extra-vars="tf_workspace=stage" --extra-va
 
 ### Адреса серверов
 
-- [http://gitlab.stage.bdvsun.ru:4433](http://gitlab.stage.bdvsun.ru:4433) - сервер Gitlab
-- [http://app.stage.bdvsun.ru](http://app.stage.bdvsun.ru) - демонстрационная страничка приложения
-- [http://atlantis.stage.bdvsun.ru](http://atlantis.stage.bdvsun.ru) - сервер Atlantis
-- [http://grafana.stage.bdvsun.ru](http://grafana.stage.bdvsun.ru) - сервер Grafana
+- [http://gitlab.stage.bdvsun.ru:4433](http://gitlab.stage.bdvsun.ru:4433) - сервер Gitlab (выключен)
+- [http://app.stage.bdvsun.ru](http://app.stage.bdvsun.ru) - демонстрационная страничка приложения (выключен)
+- [http://atlantis.stage.bdvsun.ru](http://atlantis.stage.bdvsun.ru) - сервер Atlantis (выключен)
+- [http://grafana.stage.bdvsun.ru](http://grafana.stage.bdvsun.ru) - сервер Grafana (выключен)
+
+### Комментарии эксперта Нетологии
+
+#### terraform
+
+- Думаю, стоило вынести список [CIDR](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/tf/network.tf#L32) в переменную, чтобы она была доступна, если понадобится по ней же пройти в другом цикле. Можно, конечно, её забрать из ресурса `yandex_vpc_subnet.subnet-k8s`, но это уже сложнее, чем из переменной.
+- Без необходимости не стоит использовать интерполяцию в [строках](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/tf/main.tf#L13). Если в строке помимо ссылки на другой ресурс ничего нет, просто вызовите ссылку на атрибут этого ресурса. Другими словами, вместо `bucket = "${var.yandex_s3_bucket}` лучше написать `bucket = var.yandex_s3_bucket`. Аналогично - в других похожих местах в коде.
+- Длинные строки [вроде](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/tf/instance.tf#L108) лучше выносить в файл.
+- Возможно, стоило список [ролей](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/tf/service-acc.tf#L9) тоже сделать переменной и ресурсы создать в цикле.
+
+#### ansible
+
+- Раз уж у вас все ресурсы находятся в облаке, то можно вместо статического [inventory](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/tf/output.tf#L5) использовать [динамический](https://docs.ansible.com/ansible/latest/inventory_guide/intro_dynamic_inventory.html)
+- Возможно, такое “дробление” [ролей](https://github.com/bdvme/devops_diplom/tree/main/ansible/roles) излишне, становится сложно следовать за последовательностью, логикой настройки. Впрочем, здесь в первую очередь важно, чтобы было удобно вам.
+- Для [snap](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/ansible/roles/gitlab_add_cicd_vars/tasks/main.yml#L4), в принципе, есть [модуль](https://docs.ansible.com/ansible/latest/collections/community/general/snap_module.html)
+- Конечно, токены и [пароли](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/ansible/group_vars/all/variable.yml#L42) не следует хранить в переменных в git. Но применение специальных инструментов для хранения секретов уже выходит за рамки задания.
+- Для [kubectl](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/ansible/roles/k8s_apply/tasks/main.yml#L8) тоже есть [модуль](https://docs.ansible.com/ansible/latest/collections/kubernetes/core/k8s_module.html) . На мой взгляд для выполнения kubectl было бы достаточно и просто команды из gitlab-ci. Но, выбор также за вами.
+
+#### application
+
+- Оба [файла](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/app/demo-project/src/Dockerfile#L2) можно было скопировать одной директивой COPY, тем самым сэкономив один слой в образе.
+
+#### CI/CD
+
+- Использование [only](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/app/demo-project/.gitlab-ci.yml#L16) [не рекомендуется](https://docs.gitlab.com/ee/ci/yaml/#only--except). Лучше использовать rules
+- Править k8s-манифесты [sed'ом](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/app/demo-project/.gitlab-ci.yml#L49), конечно, не следует в настоящих проектах. Для этого есть, например, helm. Но для дипломной работы подойдёт и такой способ.
+- [Получается](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/app/demo-project/.gitlab-ci.yml#L52), что деплой приложения происходит всегда при сборке master/main, а не только при создании релиза (тега).
+- Предполагалось, что [процесс](https://github.com/bdvme/devops_diplom/blob/ba80daa4e9dc2104406b0a9e0ab9cb6a44b3a576/app/demo-project/.gitlab-ci.yml#L87) будет обратным: при установке разработчиком тега в git будет происходить сборка релиза, отправка образа в регистр с соответствующим тегом (уже в понятиях docker).
+
+#### Итоги
+
+Ваш проект - один из лучших из тех, что мне доводилось проверять: максимально автоматизирован, хорошо оформлен (имею в виду обвязку скриптами и Makefile). Есть некоторая недоработка: деплой происходит не по событию релиза. Впрочем, вероятно, тут имело место недопонимание при интерпретации задания. Полагаю, что исправить пайплайн в соответствии с заданием для вас не составит труда. Поэтому, учитывая уровень выполнения остальной части работы, я не буду отправлять проект на доработку. Ставлю зачёт, а вас поздравляю с успешным окончанием курса!
